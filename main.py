@@ -53,8 +53,12 @@ class tracker:
         self.driver.get_screenshot_as_file(f'{self.__class__.__name__}\\{dt_string}.png')
 
     def track(self):
-        self.driver.get(self.url)
-        text = self.driver.find_element_by_tag_name('body').text
+        try:
+            self.driver.get(self.url)
+            text = self.driver.find_element_by_tag_name('body').text
+        except:
+            print('gg in getting result')
+            return False
 
         if SAVE_SCREENSHOT:
             self.save_screenshot()
