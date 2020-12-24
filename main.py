@@ -10,6 +10,8 @@ from win10toast import ToastNotifier
 from datetime import datetime
 import multiprocessing as mp
 import threading
+from email.mime.text import MIMEText
+
 WALMART_URL = 'https://www.walmart.ca/en/video-games/playstation-5/ps5-consoles/N-9857'
 AMAZON_URL = 'https://www.amazon.ca/PlayStation-5-Console/dp/B08GSC5D9G'
 BESTBUY_DISC_URL = 'https://www.bestbuy.ca/en-ca/product/playstation-5-console-online-only/14962185'
@@ -17,7 +19,6 @@ BESTBUY_DIGITAL_URL = 'https://www.bestbuy.ca/en-ca/product/playstation-5-digita
 EB_GAMES_URL = 'https://www.ebgames.ca/PS5/Games/877522'
 TOYSRUS_URL = 'https://www.toysrus.ca/en/PlayStation-5-Digital-Edition/E4A019FE.html'
 COSTCO_URL = 'https://www.costco.ca/playstation-5-console-bundle-.product.100696941.html'
-
 
 # Test urls. Urls below does not container the "out of stock phrases", so could be used to test the behavior when there's stock or when capcha page shows up
 test_bb_url = 'https://www.bestbuy.ca/en-ca/product/playstation-5-dualsense-wireless-controller-white/14962193' # this is the DS controller
@@ -34,14 +35,16 @@ from send_email import server, sent_from, to
 
 
 class tracker:
-    def __init__(self, url):
+    def __init__(self, url, driver_location):
         self.url = url
         self.notifier = ToastNotifier()
-        self.driver = webdriver.Edge('venv\msedgedriver.exe')
+        self.driver = webdriver.Edge(driver_location)
         self.out_of_stock_key_phrases = []
         self.in_stock_phrases = []
-        self.email_interval_seconds = 300
+        self.email_interval_seconds = 60
         self.last_email_sent_time = 0
+        self.email_msg = MIMEText(f'<a href=\"{self.url}\">{self.url}</a>','html')
+        self.email_msg['Subject'] = f'{self.__class__.__name__} sent an alert. go check now'
 
     def save_screenshot(self):
         os.makedirs(self.__class__.__name__, exist_ok=True)
@@ -64,10 +67,16 @@ class tracker:
             return True
         return not any(phrase.lower() in text.lower() for phrase in self.out_of_stock_key_phrases)
     def alert(self, msg='艹艹艹快去抢ps5啊手慢无！！！！！！'):
-        self.notifier.show_toast(title=self.__class__.__name__, msg=msg, duration=1, threaded=True)
+        try:
+            self.notifier.show_toast(title=self.__class__.__name__, msg=msg, duration=1, threaded=False)
+        except:
+            print('gg')
         if SEND_EMAIL and int(time.time()) - self.last_email_sent_time > self.email_interval_seconds:
-            server.sendmail(from_addr=sent_from, to_addrs=to, msg=f'{self.__class__.__name__} sent an alert. go check now at {self.url}!')
-            self.last_email_sent_time = int(time.time())
+            try:
+                server.sendmail(from_addr=sent_from, to_addrs=to, msg=self.email_msg.as_string())
+                self.last_email_sent_time = int(time.time())
+            except:
+                print('gg2')
     def run(self, time_between_try=1):
         while True:
             if self.track():
@@ -77,38 +86,38 @@ class tracker:
 
 
 class Walmart_tracker(tracker):
-    def __init__(self, url):
-        super(Walmart_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(Walmart_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.extend(["Sorry! We're",  "out of stock"])
 
     def alert(self):
         super(Walmart_tracker, self).alert(msg="Walmart某些out of stock 关键词不存在，应该是出现了机器人验证，手动去看看")
 
 class Amazon_tracker(tracker):
-    def __init__(self, url):
-        super(Amazon_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(Amazon_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.append("We don't know when or if this item will be back in stock.")
 
 class Bestbuy_tracker(tracker):
-    def __init__(self, url):
-        super(Bestbuy_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(Bestbuy_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.extend(["Coming soon"])
         self.in_stock_phrases.extend(['Available to ship', 'Available for free store pickup', 'Available for Backorder'])
 
 class EB_tracker(tracker):
-    def __init__(self, url):
-        super(EB_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(EB_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.append('OUT OF STOCK')
 
 class ToysRUS_tracker(tracker):
-    def __init__(self, url):
-        super(ToysRUS_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(ToysRUS_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.append('out of stock')
         # self.in_stock_phrases.append('in stock')
 
 class Costco_tracker(tracker):
-    def __init__(self, url):
-        super(Costco_tracker, self).__init__(url)
+    def __init__(self, url, driver_location):
+        super(Costco_tracker, self).__init__(url, driver_location)
         self.out_of_stock_key_phrases.append('out of stock')
 
     # override here, as costco page contains reviews, need better rules
@@ -118,6 +127,7 @@ class Costco_tracker(tracker):
             return False
         return True
 
+from shutil import copyfile
 
 if __name__ == '__main__':
     # walmart_tracker = Walmart_tracker(test_walmart_url)
@@ -137,28 +147,41 @@ if __name__ == '__main__':
     # costco_tracker = Costco_tracker(test_costco_url)
     # costco_tracker.run()
 
-    mp.set_start_method('spawn')
-    walmart_tracker = Walmart_tracker(WALMART_URL)
-    amazon_tracker = Amazon_tracker(test_amazon_url)
-    bestbuy_tracker = Bestbuy_tracker(BESTBUY_DISC_URL)
-    eb_tracker = EB_tracker(EB_GAMES_URL)
-    costco_tracker = Costco_tracker(COSTCO_URL)
+    tracker_classess = [Walmart_tracker, EB_tracker, Bestbuy_tracker, Amazon_tracker, ToysRUS_tracker, Costco_tracker]
+    tracker_urls = [WALMART_URL, EB_GAMES_URL, BESTBUY_DISC_URL, AMAZON_URL, TOYSRUS_URL, COSTCO_URL]
+    # tracker_urls = [test_walmart_url, test_eb_url, test_bb_url, test_amazon_url, test_toysrus_url, test_costco_url]
 
-    walmart_tracker = threading.Thread(target=walmart_tracker.run)
-    amazon_tracker = threading.Thread(target=amazon_tracker.run)
+    edge_original_driver_loc = 'venv/msedgedriver.exe'
+    for i, (tracker_class, url) in enumerate(zip(tracker_classess, tracker_urls)):
 
-    bestbuy_tracker = threading.Thread(target=bestbuy_tracker.run)
-    eb_tracker = threading.Thread(target=eb_tracker.run)
-    costco_tracker = threading.Thread(target=costco_tracker.run)
+        driver_loc = f'venv/msedgedriver_copy_{i}.exe'
+
+        if not os.path.exists(driver_loc):
+            copyfile(edge_original_driver_loc, driver_loc)
+        tracker = tracker_class(url, driver_loc)
+        tracker = threading.Thread(target=tracker.run)
+        tracker.start()
+        time.sleep(2)
+
+    # walmart_tracker = Walmart_tracker(test_walmart_url)
+    # amazon_tracker = Amazon_tracker(test_amazon_url)
+    # bestbuy_tracker = Bestbuy_tracker(test_bb_url)
+    # eb_tracker = EB_tracker(EB_GAMES_URL)
+    # costco_tracker = Costco_tracker(COSTCO_URL)
+
+    # walmart_tracker = threading.Thread(target=walmart_tracker.run)
+    # amazon_tracker = threading.Thread(target=amazon_tracker.run)
+    # bestbuy_tracker = threading.Thread(target=bestbuy_tracker.run)
+    # eb_tracker = threading.Thread(target=eb_tracker.run)
+    # costco_tracker = threading.Thread(target=costco_tracker.run)
 
 
-    walmart_tracker.start()
-    # walmart_process.join()
-    amazon_tracker.start()
-    bestbuy_tracker.start()
+    # walmart_tracker.start()
+    # amazon_tracker.start()
+    # bestbuy_tracker.start()
 
-    eb_tracker.start()
-    costco_tracker.start()
+    # eb_tracker.start()
+    # costco_tracker.start()
 
     # amazon_tracker.join()
 
