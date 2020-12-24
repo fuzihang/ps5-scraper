@@ -1,0 +1,5 @@
+.vscode
+*_tracker
+venv
+geckodriver.log
+__pycache__
