@@ -3,3 +3,5 @@
 venv
 geckodriver.log
 __pycache__
+chromedriver*
+edgedriver*/*

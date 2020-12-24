@@ -5,8 +5,8 @@ import time
 import io
 import requests
 from selenium.common.exceptions import ElementClickInterceptedException
-
-from win10toast import ToastNotifier
+import stat
+# from win10toast import ToastNotifier
 from datetime import datetime
 import multiprocessing as mp
 import threading
@@ -37,8 +37,8 @@ from send_email import server, sent_from, to
 class tracker:
     def __init__(self, url, driver_location):
         self.url = url
-        self.notifier = ToastNotifier()
-        self.driver = webdriver.Edge(driver_location)
+        # self.notifier = ToastNotifier()
+        self.driver = webdriver.Chrome(driver_location)
         self.out_of_stock_key_phrases = []
         self.in_stock_phrases = []
         self.email_interval_seconds = 60
@@ -50,7 +50,7 @@ class tracker:
         os.makedirs(self.__class__.__name__, exist_ok=True)
         now = datetime.now()
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
-        self.driver.get_screenshot_as_file(f'{self.__class__.__name__}\\{dt_string}.png')
+        self.driver.get_screenshot_as_file(os.path.join(f'{self.__class__.__name__}' f'{dt_string}.png'))
 
     def track(self):
         try:
@@ -72,7 +72,8 @@ class tracker:
         return not any(phrase.lower() in text.lower() for phrase in self.out_of_stock_key_phrases)
     def alert(self, msg='艹艹艹快去抢ps5啊手慢无！！！！！！'):
         try:
-            self.notifier.show_toast(title=self.__class__.__name__, msg=msg, duration=1, threaded=False)
+            # self.notifier.show_toast(title=self.__class__.__name__, msg=msg, duration=1, threaded=False)
+            pass
         except:
             print('gg')
         if SEND_EMAIL and int(time.time()) - self.last_email_sent_time > self.email_interval_seconds:
@@ -155,13 +156,14 @@ if __name__ == '__main__':
     tracker_urls = [WALMART_URL, EB_GAMES_URL, BESTBUY_DISC_URL, AMAZON_URL, TOYSRUS_URL, COSTCO_URL]
     # tracker_urls = [test_walmart_url, test_eb_url, test_bb_url, test_amazon_url, test_toysrus_url, test_costco_url]
 
-    edge_original_driver_loc = 'venv/msedgedriver.exe'
+    edge_original_driver_loc = 'chromedriver'
     for i, (tracker_class, url) in enumerate(zip(tracker_classess, tracker_urls)):
 
-        driver_loc = f'venv/msedgedriver_copy_{i}.exe'
+        driver_loc = f'chromedriver_copy_{i}'
 
         if not os.path.exists(driver_loc):
             copyfile(edge_original_driver_loc, driver_loc)
+            os.chmod(driver_loc, stat.S_IXUSR)
         tracker = tracker_class(url, driver_loc)
         tracker = threading.Thread(target=tracker.run)
         tracker.start()
@@ -188,6 +190,5 @@ if __name__ == '__main__':
     # costco_tracker.start()
 
     # amazon_tracker.join()
-
 
 
