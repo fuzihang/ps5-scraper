@@ -29,7 +29,8 @@ test_toysrus_url = 'https://www.toysrus.ca/en/PlayStation-5-DualSense-Wireless-C
 test_costco_url = 'https://www.costco.ca/playstation-5-dualsense%e2%84%a2-wireless-controller.product.100701439.html'
 
 # Whether to save screen shots while scraping; could be useful for debug
-SAVE_SCREENSHOT = True
+SAVE_SCREENSHOT = False
+
 SEND_EMAIL = True
 from send_email import server, sent_from, to
 
@@ -50,7 +51,10 @@ class tracker:
         os.makedirs(self.__class__.__name__, exist_ok=True)
         now = datetime.now()
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
-        self.driver.get_screenshot_as_file(os.path.join(f'{self.__class__.__name__}' f'{dt_string}.png'))
+        try:
+            self.driver.get_screenshot_as_file(os.path.join(f'{self.__class__.__name__}', f'{dt_string}.png'))
+        except:
+            print('gg in getting screenshot')
 
     def track(self):
         try:
@@ -127,10 +131,16 @@ class Costco_tracker(tracker):
 
     # override here, as costco page contains reviews, need better rules
     def track(self):
-        self.driver.get(self.url)
-        if self.driver.find_elements_by_id('add-to-cart-btn')[0].get_property('value') == 'Out of Stock':
+        try:
+            self.driver.get(self.url)
+            if SAVE_SCREENSHOT:
+                self.save_screenshot()
+            if self.driver.find_elements_by_id('add-to-cart-btn')[0].get_property('value') == 'Out of Stock':
+                return False
+            return True
+        except:
+            print('gg in costco tracker')
             return False
-        return True
 
 from shutil import copyfile
 
